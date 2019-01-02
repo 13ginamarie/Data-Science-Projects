@@ -1,0 +1,126 @@
+---
+title: "Abandoned_Props_GeoCoding"
+author: "Sharif Nijim, East Section"
+date: "December 5, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# initialize the environment
+rm(list=ls()) 
+# load the necessary libraries
+setwd("C:/Users/Owner/Desktop/Data Science/Data Viz/Data-Viz-2018-Fall-master/FinalProject")
+library(lubridate)
+library(reshape2)
+library(tidyverse)
+library(rgdal)
+library(sp)
+library(tmap)
+library(ggmap)
+register_google(key = "AIzaSyArtVYaFH3qvcVP2ufW5_LMMANBwZK2vS4")
+library(leaflet)
+options(scipen=999)
+```
+
+This week, your assignment has three parts:
+
+First, you will load pre-existing spatial data into R and create a quick static map using spplot.  
+Second, you will geocode a small subset of a larger dataset.  
+Finally, you will create a leaflet object from any of these datasets or one of the other examples I have provided you.  
+# Part A: Using R with spatial data (7 points)  
+School Boundaries  
+## 1. Load spatial data from a shapefile into R (3 points)  
+### read in the data
+```{r}
+# read in the data
+# Provide the code you used to load the file  
+ap <- readOGR(dsn="Abandoned_Property_Parcels", layer = "Abandoned_Property_Parcels", stringsAsFactors = FALSE)
+apdf <- as.data.frame(ap@data)
+```
+```{r}
+# display a summary of the data
+# Provide the output of the object summary  
+summary(ap)
+```
+```{r}
+# Show what is in the data
+data.frame(ap)
+```
+### Create a static map showing this layer
+```{r}
+# Create a static map showing this layer
+qtm(ap)
+```
+
+```{r}
+ap.spatial <- SpatialPointsDataFrame(coords = ap@data[,c("Lon","Lat")],
+                                       data = ap@data,
+                                       proj4string = CRS("+proj=longlat +datum=WGS84"))
+```
+```{r, eval=FALSE}
+# geocode?
+#3622 EDISON RD, SOUTH BEND, IN 46615
+#ap@data$Address_Nu + ap@data$Street_Nam + ap@data$Zip_Code
+ap.num <- as.character(ap@data$Address_Nu)
+ap.dir <- as.character(ap@data$Direction)
+ap.street <- as.character(ap@data$Street_Nam)
+ap.suff <- as.character(ap@data$Suffix)
+ap.zip <- as.character(ap@data$Zip_Code)
+ap.city <- "South Bend, IN"
+ap.outcome <- melt(as.character(ap@data$Outcome_St))
+#numstreet <- rbind(ad.num, ad.street)
+thelist <- vector()
+for (i in 1:length(ap.num)) {
+  thelist[[i]] <- paste(ap.num[[i]],
+          na.omit(ap.dir[[i]]),
+          ap.street[[i]],
+          ap.suff[[i]],
+          ", South Bend, IN",
+          ap.zip[[i]])
+}
+ap.full.addrs <- melt(thelist)
+ap.geo <- ap.full.addrs
+```
+
+```{r, eval=FALSE}
+# GEOCODE
+# loop through and get the lat/long from the address
+#for (i in 1:nrow(ap.full.addrs)) {
+for (i in 1:nrow(ap.full.addrs)) {
+  tp <- geocode(as.character(ap.full.addrs$value[i]),
+                output = "latlona",
+                source = "google")
+  ap.geo$lon[i] <- as.numeric(tp[1])
+  ap.geo$lat[i] <- as.numeric(tp[2])
+  ap.geo$accuracy[i] <- as.character(tp[3])
+}
+# Fail: 807 N Olive ST , South Bend, IN 46628, line 1212
+for (i in 1213:nrow(ap.full.addrs)) {
+  tp <- geocode(as.character(ap.full.addrs$value[i]),
+                output = "latlona",
+                source = "google")
+  ap.geo$lon[i] <- as.numeric(tp[1])
+  ap.geo$lat[i] <- as.numeric(tp[2])
+  ap.geo$accuracy[i] <- as.character(tp[3])
+}
+```
+```{r}
+apdf$lat <- ap.geo$lat
+apdf$lon <- ap.geo$lon
+apdf$accuracy <- ap.geo$accuracy
+```
+```{r, eval=FALSE}
+# save the data
+save(ap.num,
+     ap.dir,
+     ap.street,
+     ap.suff,
+     ap.zip,
+     ap.city,
+     thelist,
+     ap.full.addrs,
+     ap.geo,
+     apdf,
+     file = "Abandoned_Properties_Geocoded.v4.Rdata")
+```
